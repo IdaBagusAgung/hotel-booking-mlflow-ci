@@ -1,8 +1,8 @@
 # 🚀 Workflow CI/CD - Hotel Booking Model (ADVANCE Level)
 
 [![MLflow CI/CD](https://github.com/IdaBagusAgung/hotel-booking-mlflow-ci/actions/workflows/mlflow_ci.yml/badge.svg)](https://github.com/IdaBagusAgung/hotel-booking-mlflow-ci/actions/workflows/mlflow_ci.yml)
-[![Python 3.12.7](https://img.shields.io/badge/python-3.12.7-blue.svg)](https://www.python.org/downloads/)
-[![MLflow](https://img.shields.io/badge/MLflow-2.10.2-blue.svg)](https://mlflow.org/)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
+[![MLflow](https://img.shields.io/badge/MLflow-2.16.2-blue.svg)](https://mlflow.org/)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)](https://www.docker.com/)
 [![DagsHub](https://img.shields.io/badge/DagsHub-Integrated-blue.svg)](https://dagshub.com/gus_agung/hotel-booking-mlflow)
 
@@ -160,9 +160,9 @@ Or trigger manually via **Actions** tab → **Run workflow**
 
 | Step | Name | Duration | Description |
 |------|------|----------|-------------|
-| 1-2 | Checkout & Setup | ~30s | Clone repo, setup Python 3.12.7 |
+| 1-2 | Checkout & Setup | ~30s | Clone repo, setup Python 3.10 |
 | 3-4 | Environment Check | ~10s | Verify installation, check env vars |
-| 5 | Install Dependencies | ~1-2m | Install MLflow, setuptools, scikit-learn |
+| 5 | Install Dependencies | ~1-2m | Install MLflow 2.16.2, setuptools, scikit-learn |
 | 6 | Run MLflow Project | ~5-10m | Train models with DagsHub tracking |
 | 7 | Get Run ID | ~30s | Extract latest MLflow run ID |
 | 8 | Build Docker Model | ~3-5m | Build image with `mlflow build-docker` |
@@ -311,6 +311,9 @@ docker build -t hotel-booking-model .
 ---
 
 ## 🐛 Troubleshooting
+
+### Error: AttributeError: 'EntryPoints' object has no attribute 'get'
+**Solution**: Fixed! Changed Python 3.12.7 → 3.10 and MLflow 2.10.2 → 2.16.2 for compatibility
 
 ### Error: ModuleNotFoundError: No module named 'pkg_resources'
 **Solution**: Fixed! Workflow now installs `setuptools` along with pip upgrade
