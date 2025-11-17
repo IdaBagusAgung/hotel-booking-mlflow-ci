@@ -1,6 +1,6 @@
 # 🚀 Workflow CI/CD - Hotel Booking Model (ADVANCE Level)
 
-[![MLflow CI/CD](https://github.com/gus_agung/hotel-booking-mlflow-ci/actions/workflows/mlflow_ci.yml/badge.svg)](https://github.com/gus_agung/hotel-booking-mlflow-ci/actions/workflows/mlflow_ci.yml)
+[![MLflow CI/CD](https://github.com/IdaBagusAgung/hotel-booking-mlflow-ci/actions/workflows/mlflow_ci.yml/badge.svg)](https://github.com/IdaBagusAgung/hotel-booking-mlflow-ci/actions/workflows/mlflow_ci.yml)
 [![Python 3.12.7](https://img.shields.io/badge/python-3.12.7-blue.svg)](https://www.python.org/downloads/)
 [![MLflow](https://img.shields.io/badge/MLflow-2.10.2-blue.svg)](https://mlflow.org/)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)](https://www.docker.com/)
@@ -8,7 +8,7 @@
 
 ## 📖 Overview
 
-Workflow CI/CD otomatis untuk training dan deployment model Machine Learning menggunakan **MLflow Project**, **GitHub Actions**, **Docker Hub**, dan **Google Drive**.
+Workflow CI/CD otomatis untuk training dan deployment model Machine Learning menggunakan **MLflow Project**, **GitHub Actions**, dan **Docker Hub**.
 
 **Level**: ADVANCE (4/4 pts) - Kriteria 3  
 **Author**: gus_agung  
@@ -17,8 +17,8 @@ Workflow CI/CD otomatis untuk training dan deployment model Machine Learning men
 
 ### 🎯 Pencapaian Kriteria ADVANCE
 ✅ Folder MLProject dengan struktur lengkap  
-✅ Workflow CI menggunakan GitHub Actions  
-✅ Artifacts tersimpan di Google Drive & GitHub  
+✅ Workflow CI menggunakan GitHub Actions (12 steps)  
+✅ Artifacts tersimpan di GitHub Actions  
 ✅ Docker Images dibuat dengan `mlflow build-docker`  
 ✅ Push otomatis ke Docker Hub  
 
@@ -40,14 +40,14 @@ Workflow CI/CD otomatis untuk training dan deployment model Machine Learning men
 - ✅ Tagging dengan `latest` dan commit SHA
 - ✅ Ready untuk deployment
 
-### ☁️ Cloud Storage
-- ✅ Artifacts upload ke Google Drive
+### ☁️ Artifacts Storage
+- ✅ GitHub Actions artifacts (90 days retention)
 - ✅ Model files (.pkl) backup
 - ✅ Visualization plots (PNG) storage
-- ✅ Metrics JSON export
+- ✅ Run metadata export
 
 ### 🔄 CI/CD Automation
-- ✅ GitHub Actions workflow dengan 15 steps
+- ✅ GitHub Actions workflow dengan 12 steps
 - ✅ Multiple triggers (push, PR, manual dispatch)
 - ✅ Automated testing dan deployment
 - ✅ Artifact retention 90 days
@@ -127,26 +127,32 @@ Add these secrets in **Settings → Secrets → Actions**:
 | `MLFLOW_TRACKING_PASSWORD` | DagsHub token (same as above) | `26046db2...` |
 | `DOCKER_USERNAME` | Docker Hub username | `yourname` |
 | `DOCKER_PASSWORD` | Docker Hub password | `********` |
-| `GDRIVE_CREDENTIALS` | Google Drive OAuth JSON | `{"token": "..."}` |
+### 2. Setup GitHub Secrets
+Add these secrets in **Settings → Secrets → Actions**:
 
-### 3. Prepare Dataset
-```bash
-# Copy preprocessed data to MLProject/
-Copy-Item "../Eksperimen_SML_gus_agung/dataset/dataset_clean.csv" `
-  -Destination "MLProject/hotel_bookings_preprocessed.csv"
-```
+| Secret Name | Description | 
+|------------|-------------|
+| `DAGSHUB_TOKEN` | DagsHub API token |
+| `MLFLOW_TRACKING_USERNAME` | DagsHub username |
+| `MLFLOW_TRACKING_PASSWORD` | DagsHub token |
+| `DOCKER_USERNAME` | Docker Hub username |
+| `DOCKER_PASSWORD` | Docker Hub access token |
 
-### 4. Push to GitHub
+### 3. Trigger Workflow
 ```bash
 git add .
 git commit -m "feat: setup MLflow CI/CD pipeline"
 git push origin main
 ```
 
-### 5. Monitor Workflow
-- Go to **Actions** tab in GitHub
-- Watch workflow execution (15 steps)
-- Download artifacts when complete
+### 3. Trigger Workflow
+```bash
+git add .
+git commit -m "feat: setup MLflow CI/CD pipeline"
+git push origin main
+```
+
+Or trigger manually via **Actions** tab → **Run workflow**
 
 ---
 
@@ -156,18 +162,16 @@ git push origin main
 |------|------|----------|-------------|
 | 1-2 | Checkout & Setup | ~30s | Clone repo, setup Python 3.12.7 |
 | 3-4 | Environment Check | ~10s | Verify installation, check env vars |
-| 5 | Install Dependencies | ~1m | Install MLflow, DagsHub, scikit-learn |
-| 6 | Run MLflow Project | ~5-10m | Train 3 models with GridSearchCV |
-| 7 | Get Run ID | ~20s | Extract latest MLflow run ID |
-| 8 | Install GDrive API | ~30s | Install Google Drive dependencies |
-| 9 | Upload to GDrive | ~1m | Upload artifacts to cloud storage |
-| 10 | Build Docker Model | ~3-5m | Build image with `mlflow build-docker` |
-| 11 | Login Docker Hub | ~10s | Authenticate with Docker registry |
-| 12 | Tag Docker Image | ~5s | Tag with latest and SHA |
-| 13 | Push to Docker Hub | ~2-3m | Push image to registry |
-| 14-15 | Upload Artifacts | ~30s | Save to GitHub artifacts storage |
+| 5 | Install Dependencies | ~1-2m | Install MLflow, setuptools, scikit-learn |
+| 6 | Run MLflow Project | ~5-10m | Train models with DagsHub tracking |
+| 7 | Get Run ID | ~30s | Extract latest MLflow run ID |
+| 8 | Build Docker Model | ~3-5m | Build image with `mlflow build-docker` |
+| 9 | Login Docker Hub | ~10s | Authenticate with Docker registry |
+| 10 | Tag Docker Image | ~10s | Tag with latest and SHA |
+| 11 | Push to Docker Hub | ~2-3m | Push image to registry |
+| 12 | Upload Artifacts | ~30s | Save to GitHub artifacts storage |
 
-**Total Duration**: ~15-25 minutes
+**Total Duration**: ~12-18 minutes
 
 ---
 
@@ -256,21 +260,18 @@ gh pr create --base main --head feature-branch
 
 ## 📁 Artifacts
 
-### GitHub Artifacts (90 days retention)
+### GitHub Actions Artifacts (90 days retention)
 - `mlflow-ci-artifacts-{sha}/`
   - `models/` - Trained model files (.pkl)
   - `plots/` - Confusion matrix, ROC curves (PNG)
   - `run_info.txt` - Run metadata
+  - `Docker_Hub_Link.txt` - Docker Hub repository link
 
-### DagsHub Artifacts
-- Model files
-- Metrics JSON
-- Parameters
-- Plots
-
-### Google Drive (Permanent)
-- Full backup of all artifacts
-- Accessible via: https://drive.google.com/drive/folders/1yYZzVx9AN8R3xFUZrEMAvndNI3PQdrbs
+### DagsHub/MLflow Tracking
+- Model registry
+- Metrics and parameters
+- Experiment runs
+- Training artifacts
 
 ---
 
@@ -311,92 +312,56 @@ docker build -t hotel-booking-model .
 
 ## 🐛 Troubleshooting
 
+### Error: ModuleNotFoundError: No module named 'pkg_resources'
+**Solution**: Fixed! Workflow now installs `setuptools` along with pip upgrade
+
 ### Workflow Failed at Step 6 (Run MLflow Project)
-- ✅ Check dataset exists: `ls MLProject/hotel_bookings_preprocessed.csv`
-- ✅ Verify DagsHub secrets configured
-- ✅ Check DagsHub tracking URI accessible
+- ✅ Check dataset exists in `MLProject/hotel_bookings_preprocessed/`
+- ✅ Verify DagsHub secrets configured correctly
+- ✅ Check DAGSHUB_TOKEN is valid
 
 ### Docker Build Failed
-- ✅ Ensure models/ directory exists with .pkl files
-- ✅ Check Docker Hub credentials valid
+- ✅ Workflow has fallback mechanism for local model build
+- ✅ Check Docker Hub credentials (DOCKER_USERNAME, DOCKER_PASSWORD)
 - ✅ Verify disk space available
 
-### Google Drive Upload Skipped
-- ℹ️ This is optional - workflow continues without it
-- ✅ Configure `GDRIVE_CREDENTIALS` secret if needed
-- ✅ Format must be valid OAuth JSON
+### Docker Push Denied
+- ✅ Ensure DOCKER_PASSWORD is a valid access token (not account password)
+- ✅ Check DOCKER_USERNAME matches Docker Hub username exactly
 
 ### Common Issues
 ```bash
-# Check workflow logs
-gh run list
-gh run view <run-id> --log
+# View workflow run logs in GitHub Actions
+https://github.com/IdaBagusAgung/hotel-booking-mlflow-ci/actions
 
 # Re-run failed workflow
-gh run rerun <run-id>
+Click "Re-run all jobs" button in failed workflow run
 ```
 
 ---
 
-## 📚 Documentation
+## 📚 External Resources
 
-### 📖 Main Documentation
-- **[README.md](README.md)** - Project overview dan quick reference
-- **[QUICK_START.md](QUICK_START.md)** - ⚡ Panduan cepat 3 langkah (20 menit)
-- **[LANGKAH_EKSEKUSI.md](LANGKAH_EKSEKUSI.md)** - 📋 Step-by-step lengkap dengan troubleshooting
-- **[STATUS_DAN_KEKURANGAN.md](STATUS_DAN_KEKURANGAN.md)** - ✅ Status project dan checklist
-
-### 🔧 Technical Documentation
-- **[SETUP.md](SETUP.md)** - Detailed setup instructions
-- **[EXECUTION_GUIDE.md](EXECUTION_GUIDE.md)** - Workflow execution guide
-- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Deployment checklist
-- **[KRITERIA_3_SUMMARY.md](KRITERIA_3_SUMMARY.md)** - Kriteria assessment
-- **[TRIGGERS_GUIDE.md](TRIGGERS_GUIDE.md)** - Workflow triggers explanation
-
-### 🌐 External Resources
-- [MLflow Projects](https://mlflow.org/docs/latest/projects.html) - Official MLflow docs
-- [GitHub Actions](https://docs.github.com/en/actions) - CI/CD guide
-- [Docker Hub](https://docs.docker.com/docker-hub/) - Registry documentation
-- [DagsHub](https://dagshub.com/docs/) - MLflow hosting guide
-
-### 🚀 Rekomendasi Urutan Membaca
-1. **Pemula**: `QUICK_START.md` → Execute workflow
-2. **Detail**: `LANGKAH_EKSEKUSI.md` → Comprehensive steps
-3. **Troubleshooting**: `STATUS_DAN_KEKURANGAN.md` → Issue resolution
-4. **Reference**: `README.md` → Technical overview
+- [MLflow Projects Documentation](https://mlflow.org/docs/latest/projects.html)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Docker Hub Documentation](https://docs.docker.com/docker-hub/)
+- [DagsHub MLflow Integration](https://dagshub.com/docs/)
 
 ---
 
-## 🎓 Kriteria Assessment
+## 🎓 Kriteria Assessment - ADVANCE Level (4/4 pts)
 
 | Requirement | Status | Evidence |
 |------------|--------|----------|
-| MLflow Project Structure | ✅ | `MLproject`, `python_env.yaml` |
-| Training with DagsHub | ✅ | Runs logged to https://dagshub.com/... |
-| Artifacts Uploaded | ✅ | Models, plots in GitHub + GDrive |
-| Docker Build via MLflow | ✅ | `mlflow build-docker` in workflow |
-| Docker Hub Push | ✅ | `Docker_Hub_Link.txt` with registry URL |
-| GitHub Actions CI | ✅ | `.github/workflows/mlflow_ci.yml` |
-| Multiple Triggers | ✅ | push, PR, workflow_dispatch |
-| 15-Step Workflow | ✅ | Matches reference screenshot |
+| Folder MLProject | ✅ | Complete structure with MLproject, python_env.yaml, modelling files |
+| Workflow CI | ✅ | `.github/workflows/mlflow_ci.yml` (12 steps) |
+| Training Otomatis | ✅ | Triggers: push, PR, workflow_dispatch |
+| Artifacts Saved | ✅ | GitHub Actions artifacts (models, plots, metadata) |
+| Docker build-docker | ✅ | Step #8: `mlflow models build-docker` |
+| Push to Docker Hub | ✅ | Steps #9-11: Login, tag, push with SHA |
+| Docker_Hub_Link.txt | ✅ | Auto-generated in artifacts |
 
-**Total Score**: 4/4 pts (ADVANCE Level) ✅
-
----
-
-## 🤝 Contributing
-
-1. Fork repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push branch: `git push origin feature/amazing-feature`
-5. Open Pull Request (triggers CI workflow automatically)
-
----
-
-## 📝 License
-
-This project is part of DBS Mentor 2026 submission.
+**Total Score**: **4/4 pts (ADVANCE Level)** ✅🏆
 
 ---
 
@@ -405,7 +370,7 @@ This project is part of DBS Mentor 2026 submission.
 **gus_agung**
 - GitHub: [@IdaBagusAgung](https://github.com/IdaBagusAgung)
 - DagsHub: [@gus_agung](https://dagshub.com/gus_agung)
-- Docker Hub: [Your Docker Hub Profile]
+- Docker Hub: [@gusagung](https://hub.docker.com/u/gusagung)
 
 ---
 
@@ -413,10 +378,10 @@ This project is part of DBS Mentor 2026 submission.
 
 - DBS Foundation - Mentor Program 2026
 - MLflow Community
-- DagsHub for free MLflow hosting
+- DagsHub for MLflow hosting
 - GitHub Actions for CI/CD platform
 
 ---
 
-**Last Updated**: 2024  
+**Last Updated**: November 17, 2025  
 **Status**: ✅ PRODUCTION READY
