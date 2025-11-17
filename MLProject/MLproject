@@ -1,0 +1,16 @@
+name: hotel_booking_mlflow_ci
+
+python_env: python_env.yaml
+
+entry_points:
+  main:
+    parameters:
+      data_path: {type: string, default: "hotel_bookings_preprocessed"}
+      experiment_name: {type: string, default: "hotel_booking_ci_advance"}
+    command: "python modelling_tuning.py"
+  
+  train:
+    parameters:
+      data_path: {type: string, default: "hotel_bookings_preprocessed"}
+      experiment_name: {type: string, default: "hotel_booking_ci_advance"}
+    command: "python modelling_tuning.py"

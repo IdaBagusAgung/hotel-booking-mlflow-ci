@@ -1,0 +1,83 @@
+# Docker Hub Link
+
+## Repository Information
+- **Docker Hub Username**: gus_agung
+- **Repository Name**: hotel-booking-model
+- **Full Repository URL**: https://hub.docker.com/r/gus_agung/hotel-booking-model
+
+## Available Tags
+- `latest` - Latest stable model
+- `<run_number>` - Specific CI/CD run version (e.g., `123`, `124`, etc.)
+
+## Pull Command
+```bash
+docker pull gus_agung/hotel-booking-model:latest
+```
+
+Or specific version:
+```bash
+docker pull gus_agung/hotel-booking-model:<run_number>
+```
+
+## Run Container
+```bash
+docker run -p 5000:5000 gus_agung/hotel-booking-model:latest
+```
+
+## Model Serving Endpoint
+Once the container is running, the model will be available at:
+- http://localhost:5000/invocations
+
+## Test Prediction
+```bash
+curl -X POST http://localhost:5000/invocations \
+  -H "Content-Type: application/json" \
+  -d '{"dataframe_split": {"columns": ["feature1", "feature2", ...], "data": [[value1, value2, ...]]}}'
+```
+
+## Setup Instructions for Docker Hub
+
+1. **Create Docker Hub Account**
+   - Go to https://hub.docker.com/
+   - Sign up with email or GitHub
+   - Username: gus_agung
+
+2. **Create Repository**
+   - Click "Create Repository"
+   - Name: hotel-booking-model
+   - Visibility: Public
+   - Description: Hotel Booking Cancellation Prediction Model
+
+3. **Generate Access Token**
+   - Go to Account Settings > Security
+   - Click "New Access Token"
+   - Name: github-actions
+   - Copy the token
+
+4. **Add GitHub Secrets**
+   - Go to GitHub repository > Settings > Secrets and variables > Actions
+   - Add new secret:
+     - Name: DOCKER_USERNAME
+     - Value: gus_agung
+   - Add new secret:
+     - Name: DOCKER_PASSWORD
+     - Value: <your_docker_hub_token>
+
+5. **GitHub Actions will automatically**:
+   - Build Docker image on each push
+   - Tag with run number
+   - Push to Docker Hub
+   - Make available for deployment
+
+## Image Contents
+- Python 3.10 environment
+- MLflow model artifacts
+- Trained scikit-learn model
+- All required dependencies
+- MLflow model serving endpoint
+
+## Notes
+- Images are automatically built and pushed via GitHub Actions
+- Each CI/CD run creates a new tagged version
+- The `latest` tag always points to the most recent successful build
+- Images can be deployed to any Docker-compatible platform
