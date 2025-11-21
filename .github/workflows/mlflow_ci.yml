@@ -118,85 +118,41 @@ jobs:
         echo "Experiment: ${{ github.event.inputs.experiment_name || 'hotel_booking_ci_advance' }}" >> artifacts/run_info.txt
         echo "Timestamp: $(date)" >> artifacts/run_info.txt
         
-    # Step 8: Build Docker Model
-    - name: Build Docker Model
-      env:
-        DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
-        MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
-        MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+    # Step 8: Prepare models directory
+    - name: Prepare models directory
       run: |
         cd MLProject
-        export MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }}
         
-        # Get best model path (use RandomForest as default)
-        MODEL_PATH="models/random_forest_model.pkl"
+        # Ensure models directory exists
+        mkdir -p models
         
-        if [ -f "$MODEL_PATH" ]; then
-          echo "Building Docker image from model: $MODEL_PATH"
-          
-          # Build Docker image using MLflow
-          mlflow models build-docker \
-            --model-uri "models:/${{ env.DOCKER_IMAGE_NAME }}/latest" \
-            --name "${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" \
-            || echo "Docker build from model registry failed, building from local model..."
-          
-          # Alternative: Build from local model if registry fails
-          if [ $? -ne 0 ]; then
-            echo "Building Docker image from local model path..."
-            python -c "
-        import mlflow
-        import mlflow.sklearn
-        import joblib
+        # Create a placeholder file to ensure directory is not empty
+        echo "Models will be loaded from MLflow during runtime" > models/README.txt
         
-        # Load and log model
-        model = joblib.load('$MODEL_PATH')
+        echo "✓ Models directory prepared"
+        ls -la models/
         
-        with mlflow.start_run(run_name='docker_build'):
-            mlflow.sklearn.log_model(
-                sk_model=model,
-                artifact_path='model',
-                registered_model_name='${{ env.DOCKER_IMAGE_NAME }}'
-            )
-            run_id = mlflow.active_run().info.run_id
-            print(f'Model logged with run_id: {run_id}')
-            
-        # Build Docker from run
-        import subprocess
-        result = subprocess.run([
-            'mlflow', 'models', 'build-docker',
-            '--model-uri', f'runs:/{run_id}/model',
-            '--name', '${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}'
-        ])
-            " || echo "Docker build completed with warnings"
-          fi
-        else
-          echo "Model file not found: $MODEL_PATH"
-          echo "Creating dummy Docker image for demonstration..."
-          
-          # Create simple Dockerfile
-          cat > Dockerfile << 'DOCKEREOF'
-        FROM python:3.12.7-slim
+    # Step 9: Build Docker Image
+    - name: Build Docker Image
+      run: |
+        cd MLProject
         
-        WORKDIR /app
+        echo "Building Docker image: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
         
-        RUN pip install mlflow scikit-learn pandas numpy joblib
+        # Build Docker image
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest -f Dockerfile .
         
-        COPY models/ /app/models/
+        echo "✓ Docker image built successfully"
+        docker images | grep ${{ env.DOCKER_IMAGE_NAME }}
         
-        CMD ["python", "-c", "print('Hotel Booking Model Container Ready')"]
-        DOCKEREOF
-          
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest .
-        fi
-        
-    # Step 9: Log in to Docker Hub
+    # Step 10: Log in to Docker Hub
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         
-    # Step 10: Tag Docker image
+    # Step 11: Tag Docker image
     - name: Tag Docker image
       run: |
         # Tag with latest
@@ -206,7 +162,7 @@ jobs:
         echo "Docker images:"
         docker images | grep ${{ env.DOCKER_IMAGE_NAME }}
         
-    # Step 11: Push Docker image
+    # Step 12: Push Docker image
     - name: Push Docker image
       run: |
         echo "Pushing Docker image to Docker Hub..."
@@ -222,7 +178,7 @@ jobs:
         
         cat Docker_Hub_Link.txt
         
-    # Step 12: Upload workflow artifacts
+    # Step 13: Upload workflow artifacts
     - name: Upload workflow artifacts
       uses: actions/upload-artifact@v4
       if: always()

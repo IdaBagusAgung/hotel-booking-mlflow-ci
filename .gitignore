@@ -16,6 +16,14 @@ outputs/
 artifacts/
 plots/
 
+# Models - ignore model files but keep directory structure
+MLProject/models/*.pkl
+MLProject/models/*.joblib
+MLProject/models/*.h5
+MLProject/models/*.model
+# Keep .gitkeep to track models directory
+!MLProject/models/.gitkeep
+
 # Environment
 .env
 
