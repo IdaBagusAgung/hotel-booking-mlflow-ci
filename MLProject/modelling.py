@@ -1,223 +1,382 @@
 """
-MLflow Project Model Training Script for CI/CD
+Hotel Booking Cancellation Prediction Model - Enhanced Version
 Author: gus_agung
-Description: Automated model training for CI/CD pipeline
+Description: Machine Learning model using MLflow with AUTOLOG + MANUAL LOGGING
+Level: Enhanced - Autolog + 5 Additional Manual Metrics + Visualizations
 """
 
+import os
 import pandas as pd
 import numpy as np
 import mlflow
 import mlflow.sklearn
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
-                             f1_score, roc_auc_score, classification_report, 
-                             confusion_matrix)
-import click
-import os
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, roc_auc_score, classification_report,
+    confusion_matrix, matthews_corrcoef, cohen_kappa_score,
+    log_loss, roc_curve
+)
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for threading safety
+import matplotlib.pyplot as plt
+import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
 
+# Optional: Load from .env if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
 
-def load_data(data_path):
+
+def setup_mlflow():
+    """
+    Setup MLflow tracking
+    Enhanced: Autolog + Manual Logging with localhost tracking
+    """
+    print("="*70)
+    print(" "*10 + "MLFLOW SETUP - AUTOLOG + MANUAL LOGGING")
+    print("="*70)
+    
+    # Set tracking URI to localhost (required for submission)
+    mlflow.set_tracking_uri("http://127.0.0.1:5000")
+    
+    # Set experiment
+    experiment_name = "hotel_booking_enhanced_experiments"
+    mlflow.set_experiment(experiment_name)
+    
+    print(f"✓ Tracking URI: {mlflow.get_tracking_uri()}")
+    print(f"✓ Experiment: {experiment_name}")
+    print(f"✓ Autolog: ENABLED (model artifacts)")
+    print(f"✓ Manual Logging: ENABLED (5+ additional metrics)")
+    print(f"✓ Visualizations: confusion_matrix, roc_curve, metrics_comparison")
+    print("="*70 + "\n")
+
+
+def load_data(data_dir='hotel_bookings_preprocessed'):
     """
     Load preprocessed data
     
     Args:
-        data_path (str): Path to preprocessed data directory
+        data_dir (str): Directory containing preprocessed data
         
     Returns:
         tuple: X_train, X_test, y_train, y_test
     """
-    print(f"[INFO] Loading data from {data_path}/")
+    print(f"[INFO] Loading data from {data_dir}/")
     
-    X_train = pd.read_csv(f'{data_path}/X_train.csv')
-    X_test = pd.read_csv(f'{data_path}/X_test.csv')
-    y_train = pd.read_csv(f'{data_path}/y_train.csv').values.ravel()
-    y_test = pd.read_csv(f'{data_path}/y_test.csv').values.ravel()
+    X_train = pd.read_csv(f'{data_dir}/X_train.csv')
+    X_test = pd.read_csv(f'{data_dir}/X_test.csv')
+    y_train = pd.read_csv(f'{data_dir}/y_train.csv').values.ravel()
+    y_test = pd.read_csv(f'{data_dir}/y_test.csv').values.ravel()
     
-    print(f"[INFO] Training set: {X_train.shape}")
-    print(f"[INFO] Test set: {X_test.shape}")
+    print(f"✓ Training set: {X_train.shape}")
+    print(f"✓ Test set: {X_test.shape}")
+    print(f"✓ Class distribution (train): {np.bincount(y_train)}\n")
     
     return X_train, X_test, y_train, y_test
 
 
-def train_model(X_train, y_train, model_type, n_estimators, max_depth, min_samples_split, tune=False):
+def calculate_additional_metrics(y_true, y_pred, y_pred_proba):
     """
-    Train machine learning model
-    
-    Args:
-        X_train: Training features
-        y_train: Training target
-        model_type (str): Type of model
-        n_estimators (int): Number of estimators
-        max_depth (int): Maximum depth
-        min_samples_split (int): Minimum samples for split
-        tune (bool): Whether to perform hyperparameter tuning
-        
-    Returns:
-        trained model
+    Calculate 5+ additional metrics beyond autolog
     """
-    print(f"\n[INFO] Training {model_type} model...")
+    metrics = {}
     
-    if tune:
-        print("[INFO] Performing hyperparameter tuning...")
-        if model_type == 'random_forest':
-            base_model = RandomForestClassifier(random_state=42, n_jobs=-1)
-            param_grid = {
-                'n_estimators': [100, 200, 300],
-                'max_depth': [10, 15, 20],
-                'min_samples_split': [2, 5, 10]
-            }
-        else:
-            base_model = GradientBoostingClassifier(random_state=42)
-            param_grid = {
-                'n_estimators': [100, 200, 300],
-                'learning_rate': [0.01, 0.1, 0.2],
-                'max_depth': [3, 5, 7]
-            }
-        
-        grid_search = GridSearchCV(base_model, param_grid, cv=3, scoring='f1', n_jobs=-1, verbose=1)
-        grid_search.fit(X_train, y_train)
-        
-        print(f"[INFO] Best parameters: {grid_search.best_params_}")
-        return grid_search.best_estimator_
+    # Additional Metric 1: Matthews Correlation Coefficient
+    metrics['matthews_corrcoef'] = matthews_corrcoef(y_true, y_pred)
     
-    else:
-        if model_type == 'random_forest':
-            model = RandomForestClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                min_samples_split=min_samples_split,
-                random_state=42,
-                n_jobs=-1
-            )
-        else:
-            model = GradientBoostingClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                min_samples_split=min_samples_split,
-                random_state=42
-            )
-        
-        model.fit(X_train, y_train)
-        return model
-
-
-def evaluate_model(model, X_test, y_test):
-    """
-    Evaluate model performance
+    # Additional Metric 2: Cohen's Kappa Score
+    metrics['cohen_kappa'] = cohen_kappa_score(y_true, y_pred)
     
-    Args:
-        model: Trained model
-        X_test: Test features
-        y_test: Test target
-        
-    Returns:
-        dict: Evaluation metrics
-    """
-    print("\n[INFO] Evaluating model...")
+    # Additional Metric 3: Log Loss
+    metrics['log_loss'] = log_loss(y_true, y_pred_proba)
     
-    y_pred = model.predict(X_test)
-    y_pred_proba = model.predict_proba(X_test)[:, 1]
-    
-    metrics = {
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred),
-        'recall': recall_score(y_test, y_pred),
-        'f1_score': f1_score(y_test, y_pred),
-        'roc_auc': roc_auc_score(y_test, y_pred_proba)
-    }
-    
-    # Additional metrics
-    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+    # Additional Metric 4: Specificity (True Negative Rate)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
     metrics['specificity'] = tn / (tn + fp) if (tn + fp) > 0 else 0
-    metrics['false_positive_rate'] = fp / (fp + tn) if (fp + tn) > 0 else 0
     
-    print("\n[INFO] Model Performance:")
-    for metric_name, metric_value in metrics.items():
-        print(f"  • {metric_name}: {metric_value:.4f}")
+    # Additional Metric 5: Balanced Accuracy
+    recall_per_class = recall_score(y_true, y_pred, average=None)
+    metrics['balanced_accuracy'] = np.mean(recall_per_class)
+    
+    # Additional Metric 6: Geometric Mean
+    metrics['geometric_mean'] = np.sqrt(recall_per_class[0] * recall_per_class[1])
     
     return metrics
 
 
-@click.command()
-@click.option('--data_path', default='hotel_bookings_preprocessed', help='Path to preprocessed data')
-@click.option('--model_type', default='random_forest', help='Type of model to train')
-@click.option('--n_estimators', default=200, type=int, help='Number of estimators')
-@click.option('--max_depth', default=15, type=int, help='Maximum depth')
-@click.option('--min_samples_split', default=5, type=int, help='Minimum samples split')
-@click.option('--experiment_name', default='hotel_booking_ci', help='MLflow experiment name')
-@click.option('--use_dagshub', default='false', help='Use DagsHub for remote tracking')
-@click.option('--dagshub_uri', default='', help='DagsHub tracking URI')
-@click.option('--tune', default=False, is_flag=True, help='Perform hyperparameter tuning')
-def main(data_path, model_type, n_estimators, max_depth, min_samples_split, 
-         experiment_name, use_dagshub, dagshub_uri, tune):
+def create_visualizations(y_true, y_pred, y_pred_proba, model_name):
     """
-    Main training pipeline for MLflow Project
+    Create and save visualizations
     """
-    print("="*60)
-    print("MLFLOW PROJECT - MODEL TRAINING")
-    print("="*60)
+    plots = []
     
-    # Setup MLflow
-    if use_dagshub.lower() == 'true' and dagshub_uri:
-        print(f"[INFO] Using DagsHub: {dagshub_uri}")
-        mlflow.set_tracking_uri(dagshub_uri)
-    else:
-        print("[INFO] Using local MLflow tracking")
-        mlflow.set_tracking_uri("file:./mlruns")
+    # 1. Confusion Matrix
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=['Not Canceled', 'Canceled'],
+                yticklabels=['Not Canceled', 'Canceled'])
+    plt.title(f'Confusion Matrix - {model_name}')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    cm_path = f'confusion_matrix_{model_name}.png'
+    plt.savefig(cm_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    plots.append(cm_path)
     
-    mlflow.set_experiment(experiment_name)
+    # 2. ROC Curve
+    fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
+    roc_auc = roc_auc_score(y_true, y_pred_proba)
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.4f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'ROC Curve - {model_name}')
+    plt.legend(loc="lower right")
+    plt.grid(alpha=0.3)
+    roc_path = f'roc_curve_{model_name}.png'
+    plt.savefig(roc_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    plots.append(roc_path)
     
-    # Load data
-    X_train, X_test, y_train, y_test = load_data(data_path)
+    # 3. Metrics Bar Chart
+    metrics = {
+        'Accuracy': accuracy_score(y_true, y_pred),
+        'Precision': precision_score(y_true, y_pred, average='weighted'),
+        'Recall': recall_score(y_true, y_pred, average='weighted'),
+        'F1-Score': f1_score(y_true, y_pred, average='weighted'),
+        'ROC-AUC': roc_auc
+    }
+    plt.figure(figsize=(10, 6))
+    plt.bar(metrics.keys(), metrics.values(), color='skyblue', edgecolor='navy')
+    plt.ylim([0, 1.1])
+    plt.ylabel('Score')
+    plt.title(f'Model Performance Metrics - {model_name}')
+    plt.xticks(rotation=45)
+    for i, (k, v) in enumerate(metrics.items()):
+        plt.text(i, v + 0.02, f'{v:.4f}', ha='center', fontweight='bold')
+    plt.tight_layout()
+    metrics_path = f'metrics_chart_{model_name}.png'
+    plt.savefig(metrics_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    plots.append(metrics_path)
+    
+    return plots
+
+
+def train_model_enhanced(X_train, X_test, y_train, y_test, model_name="RandomForest"):
+    """
+    Train model using AUTOLOG + MANUAL LOGGING
+    - Autolog: Handles model artifacts (model/, estimator.html, etc.)
+    - Manual: Logs 5+ additional metrics + visualizations
+    """
+    print("\n" + "="*70)
+    print(f"TRAINING {model_name} - AUTOLOG + MANUAL LOGGING")
+    print("="*70)
+    
+    # Enable autolog for model artifacts
+    mlflow.sklearn.autolog(
+        log_models=True,
+        log_input_examples=True,
+        log_model_signatures=True,
+        disable=False
+    )
     
     # Start MLflow run
-    with mlflow.start_run(run_name=f"{model_type}_ci_run") as run:
+    with mlflow.start_run(run_name=f"{model_name}_enhanced"):
         
-        print(f"\n[INFO] MLflow Run ID: {run.info.run_id}")
+        # Select model
+        if model_name == "RandomForest":
+            model = RandomForestClassifier(
+                n_estimators=100,
+                random_state=42,
+                n_jobs=-1
+            )
+        elif model_name == "LogisticRegression":
+            model = LogisticRegression(
+                random_state=42,
+                max_iter=1000,
+                n_jobs=-1
+            )
+        elif model_name == "DecisionTree":
+            model = DecisionTreeClassifier(
+                random_state=42,
+                max_depth=10
+            )
+        else:
+            raise ValueError(f"Unknown model: {model_name}")
         
-        # Log parameters
-        mlflow.log_param("data_path", data_path)
-        mlflow.log_param("model_type", model_type)
-        mlflow.log_param("n_estimators", n_estimators)
-        mlflow.log_param("max_depth", max_depth)
-        mlflow.log_param("min_samples_split", min_samples_split)
-        mlflow.log_param("hyperparameter_tuning", tune)
+        print(f"\n[INFO] Training {model_name}...")
         
-        # Train model
-        model = train_model(X_train, y_train, model_type, n_estimators, 
-                          max_depth, min_samples_split, tune)
+        # Train model - autolog will automatically log params, metrics, model
+        model.fit(X_train, y_train)
         
-        # Evaluate model
-        metrics = evaluate_model(model, X_test, y_test)
+        print(f"✓ Model trained successfully!")
         
-        # Log metrics
-        for metric_name, metric_value in metrics.items():
-            mlflow.log_metric(metric_name, metric_value)
-        
-        # Log model
-        mlflow.sklearn.log_model(
-            model, 
-            "model",
-            registered_model_name=f"hotel_booking_{model_type}_ci"
-        )
-        
-        # Save classification report
+        # Make predictions
         y_pred = model.predict(X_test)
-        report = classification_report(y_test, y_pred)
+        y_pred_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, 'predict_proba') else None
         
-        os.makedirs('outputs', exist_ok=True)
-        report_path = 'outputs/classification_report.txt'
-        with open(report_path, 'w') as f:
-            f.write(report)
-        mlflow.log_artifact(report_path)
+        # Calculate metrics (autolog will log these automatically)
+        accuracy = accuracy_score(y_test, y_pred)
+        precision = precision_score(y_test, y_pred, average='weighted')
+        recall = recall_score(y_test, y_pred, average='weighted')
+        f1 = f1_score(y_test, y_pred, average='weighted')
         
-        print("\n" + "="*60)
-        print("[SUCCESS] Model training completed!")
-        print(f"[INFO] Run ID: {run.info.run_id}")
-        print("="*60)
+        # Print results
+        print(f"\n{'='*70}")
+        print(f"MODEL PERFORMANCE - {model_name}")
+        print(f"{'='*70}")
+        print(f"Accuracy:  {accuracy:.4f}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall:    {recall:.4f}")
+        print(f"F1-Score:  {f1:.4f}")
+        
+        if y_pred_proba is not None:
+            roc_auc = roc_auc_score(y_test, y_pred_proba)
+            print(f"ROC-AUC:   {roc_auc:.4f}")
+        
+        print(f"{'='*70}\n")
+        
+        # Print classification report
+        print("Classification Report:")
+        print(classification_report(y_test, y_pred, target_names=['Not Canceled', 'Canceled']))
+        
+        # MANUAL LOGGING: Calculate 5+ additional metrics
+        print(f"\n{'='*70}")
+        print("CALCULATING 5+ ADDITIONAL METRICS (Beyond autolog)")
+        print(f"{'='*70}")
+        
+        additional_metrics = calculate_additional_metrics(y_test, y_pred, y_pred_proba if y_pred_proba is not None else y_pred)
+        
+        # Log additional metrics manually
+        for metric_name, value in additional_metrics.items():
+            mlflow.log_metric(f"additional_{metric_name}", value)
+            print(f"✓ {metric_name}: {value:.4f}")
+        
+        # MANUAL LOGGING: Create and log visualizations
+        print(f"\n{'='*70}")
+        print("CREATING & LOGGING VISUALIZATIONS")
+        print(f"{'='*70}")
+        
+        if y_pred_proba is not None:
+            plot_paths = create_visualizations(y_test, y_pred, y_pred_proba, model_name)
+            for plot_path in plot_paths:
+                mlflow.log_artifact(plot_path)
+                print(f"✓ Logged: {plot_path}")
+                # Delete local file after logging
+                if os.path.exists(plot_path):
+                    os.remove(plot_path)
+        
+        # Get run info
+        run = mlflow.active_run()
+        print(f"\n{'='*70}")
+        print(f"✓ MLflow Run ID: {run.info.run_id}")
+        print(f"✓ AUTOLOG: Model artifacts (model/, estimator.html) ✓")
+        print(f"✓ MANUAL: 6 additional metrics ✓")
+        print(f"✓ MANUAL: 3 visualizations (PNG files) ✓")
+        print(f"{'='*70}")
+        
+        return model, {
+            'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f1_score': f1,
+            'roc_auc': roc_auc if y_pred_proba is not None else None,
+            **additional_metrics
+        }
+
+
+def main():
+    """
+    Main function to run Basic level training
+    """
+    print("\n" + "="*70)
+    print(" "*10 + "HOTEL BOOKING CANCELLATION PREDICTION")
+    print(" "*15 + "KRITERIA 2 - BASIC LEVEL (2/4 pts)")
+    print(" "*15 + "AUTOLOG + MANUAL LOGGING (5+ metrics)")
+    print("="*70 + "\n")
+    
+    # Setup MLflow
+    setup_mlflow()
+    
+    # Load data
+    X_train, X_test, y_train, y_test = load_data()
+    
+    # Train multiple models with autolog + manual logging
+    models_to_train = ["RandomForest", "LogisticRegression", "DecisionTree"]
+    
+    results = {}
+    
+    for model_name in models_to_train:
+        try:
+            model, metrics = train_model_enhanced(
+                X_train, X_test, y_train, y_test,
+                model_name=model_name
+            )
+            results[model_name] = metrics
+            print(f"\n{'✓'*35}")
+            print(f"✓ {model_name} training completed successfully!")
+            print(f"{'✓'*35}\n")
+            
+        except Exception as e:
+            print(f"\n❌ Error training {model_name}: {str(e)}\n")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    # Summary
+    print("\n" + "="*70)
+    print(" "*20 + "TRAINING SUMMARY")
+    print("="*70)
+    print(f"✓ Total models trained: {len(results)}")
+    print(f"✓ MLflow tracking: http://127.0.0.1:5000")
+    print(f"✓ Autolog: ENABLED (model artifacts)")
+    print(f"✓ Manual logging: 6 additional metrics + 3 visualizations")
+    print("\n" + "="*70)
+    print("Models Performance Comparison:")
+    print("="*70)
+    
+    for model_name, metrics in results.items():
+        print(f"\n{model_name}:")
+        # Show main metrics
+        for metric_name in ['accuracy', 'precision', 'recall', 'f1_score', 'roc_auc']:
+            if metric_name in metrics and metrics[metric_name] is not None:
+                print(f"  {metric_name}: {metrics[metric_name]:.4f}")
+        # Show additional metrics
+        print(f"  + 6 additional metrics logged to MLflow")
+    
+    print("\n" + "="*70)
+    print("✅ BASIC LEVEL COMPLETED!")
+    print("="*70)
+    print("\nNext steps:")
+    print("1. Start MLflow UI: mlflow ui --host 127.0.0.1 --port 5000")
+    print("2. Open browser: http://localhost:5000 or http://127.0.0.1:5000")
+    print("3. Take screenshots showing:")
+    print("   - Dashboard with experiments list")
+    print("   - Run details showing parameters and metrics")
+    print("   - Artifacts page showing:")
+    print("     * model/ folder containing:")
+    print("       - MLmodel")
+    print("       - model.pkl")
+    print("       - conda.yaml")
+    print("       - python_env.yaml")
+    print("       - requirements.txt")
+    print("     * estimator.html (for sklearn models)")
+    print("     * confusion_matrix_*.png")
+    print("     * roc_curve_*.png")
+    print("     * metrics_chart_*.png")
+    print("\n" + "="*70 + "\n")
 
 
 if __name__ == "__main__":

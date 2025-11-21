@@ -27,6 +27,8 @@ from sklearn.metrics import (
     confusion_matrix, precision_recall_curve, roc_curve,
     matthews_corrcoef, cohen_kappa_score, log_loss
 )
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for threading safety
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
@@ -43,6 +45,7 @@ except:
 def setup_dagshub_mlflow():
     """
     Setup DagsHub and MLflow tracking (ADVANCE LEVEL)
+    Properly configured for DagsHub remote tracking
     """
     print("="*70)
     print(" "*15 + "DAGSHUB + MLFLOW SETUP - ADVANCE LEVEL")
@@ -53,26 +56,41 @@ def setup_dagshub_mlflow():
     repo = os.getenv('DAGSHUB_REPO', 'hotel-booking-mlflow')
     token = os.getenv('DAGSHUB_TOKEN', '')
     
-    # Initialize DagsHub
-    dagshub.init(repo_owner=username, repo_name=repo, mlflow=True)
+    if not token:
+        print("[WARNING] DAGSHUB_TOKEN not found in environment variables!")
+        print("[INFO] Please set DAGSHUB_TOKEN in .env file or environment")
+        print("[INFO] Example: DAGSHUB_TOKEN=your_dagshub_token_here")
+    
+    # Initialize DagsHub with MLflow integration
+    try:
+        dagshub.init(repo_owner=username, repo_name=repo, mlflow=True)
+        print(f"✓ DagsHub initialized successfully")
+    except Exception as e:
+        print(f"[WARNING] DagsHub init failed: {e}")
+        print("[INFO] Continuing with MLflow only...")
     
     # Set MLflow tracking URI to DagsHub
     mlflow_tracking_uri = f"https://dagshub.com/{username}/{repo}.mlflow"
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     
-    # Set DagsHub credentials for MLflow
-    os.environ['MLFLOW_TRACKING_USERNAME'] = username
-    os.environ['MLFLOW_TRACKING_PASSWORD'] = token
+    # Set DagsHub credentials for MLflow authentication
+    if token:
+        os.environ['MLFLOW_TRACKING_USERNAME'] = username
+        os.environ['MLFLOW_TRACKING_PASSWORD'] = token
     
     # Set experiment
     experiment_name = "hotel_booking_advance_experiments"
-    mlflow.set_experiment(experiment_name)
+    try:
+        mlflow.set_experiment(experiment_name)
+        print(f"✓ Experiment set: {experiment_name}")
+    except Exception as e:
+        print(f"[WARNING] Could not set experiment: {e}")
     
     print(f"✓ DagsHub Repository: https://dagshub.com/{username}/{repo}")
     print(f"✓ MLflow Tracking URI: {mlflow_tracking_uri}")
-    print(f"✓ Experiment: {experiment_name}")
     print(f"✓ Manual Logging: ENABLED (Advance Level)")
-    print(f"✓ Advanced Metrics: ENABLED (+2 beyond autolog)")
+    print(f"✓ Advanced Metrics: ENABLED (+6 beyond autolog)")
+    print(f"✓ Visualization Artifacts: confusion_matrix.png, roc_curve.png, etc.")
     print("="*70 + "\n")
     
     return mlflow_tracking_uri
@@ -202,16 +220,28 @@ def plot_roc_curve(y_true, y_pred_proba, model_name):
 
 def train_model_with_tuning(X_train, X_test, y_train, y_test, model_type="RandomForest"):
     """
-    Train model with hyperparameter tuning and MANUAL LOGGING to DagsHub
+    Train model with hyperparameter tuning and AUTOLOG + MANUAL LOGGING to DagsHub
     (ADVANCE LEVEL REQUIREMENT)
+    
+    Strategy:
+    - AUTOLOG: Handles model artifacts (model/, estimator.html, etc.)
+    - MANUAL: Logs 6+ advanced metrics + visualizations
     
     Args:
         X_train, X_test, y_train, y_test: Training and test data
         model_type: Type of model to train
     """
     print("\n" + "="*70)
-    print(f"TRAINING {model_type} WITH MANUAL LOGGING (ADVANCE LEVEL)")
+    print(f"TRAINING {model_type} - AUTOLOG + MANUAL LOGGING (ADVANCE LEVEL)")
     print("="*70)
+    
+    # Enable autolog for model artifacts (same as basic level)
+    mlflow.sklearn.autolog(
+        log_models=True,
+        log_input_examples=True,
+        log_model_signatures=True,
+        disable=False
+    )
     
     # Define hyperparameter grids
     if model_type == "RandomForest":
@@ -240,8 +270,8 @@ def train_model_with_tuning(X_train, X_test, y_train, y_test, model_type="Random
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
-    # Start MLflow run with MANUAL LOGGING
-    with mlflow.start_run(run_name=f"{model_type}_tuned_manual"):
+    # Start MLflow run with AUTOLOG + MANUAL LOGGING
+    with mlflow.start_run(run_name=f"{model_type}_tuned_enhanced"):
         
         print(f"\n[INFO] Performing GridSearchCV for {model_type}...")
         
@@ -314,11 +344,15 @@ def train_model_with_tuning(X_train, X_test, y_train, y_test, model_type="Random
         cm_path = plot_confusion_matrix(y_test, y_pred, model_type)
         mlflow.log_artifact(cm_path)
         print(f"✓ Confusion matrix saved and logged")
+        if os.path.exists(cm_path):
+            os.remove(cm_path)
         
         # ROC Curve
         roc_path = plot_roc_curve(y_test, y_pred_proba, model_type)
         mlflow.log_artifact(roc_path)
         print(f"✓ ROC curve saved and logged")
+        if os.path.exists(roc_path):
+            os.remove(roc_path)
         
         # Feature importance (if available)
         if hasattr(best_model, 'feature_importances_'):
@@ -339,39 +373,33 @@ def train_model_with_tuning(X_train, X_test, y_train, y_test, model_type="Random
             
             mlflow.log_artifact(fi_path)
             print(f"✓ Feature importance plot saved and logged")
+            
+            # Clean up local file
+            if os.path.exists(fi_path):
+                os.remove(fi_path)
         
-        # MANUAL LOGGING - Save model locally (DagsHub doesn't support log_model)
-        # Save model to local folder
-        import joblib
-        os.makedirs('models', exist_ok=True)
-        model_path = f'models/{model_type}_best_model.pkl'
-        joblib.dump(best_model, model_path)
-        print(f"✓ Model saved locally: {model_path}")
-        
-        # Try to log model to MLflow (may fail on DagsHub free tier)
-        try:
-            mlflow.sklearn.log_model(best_model, "model")
-            print(f"✓ Model logged to MLflow")
-        except Exception as log_error:
-            print(f"⚠ Model artifact logging skipped (DagsHub limitation): {str(log_error)}")
-            # Log the local model path as artifact instead
-            mlflow.log_artifact(model_path)
-            print(f"✓ Model file uploaded as artifact instead")
+        # Note: Model artifact is handled by autolog automatically
+        # No need for manual model logging (autolog will create model/ folder)
+        print(f"✓ Model artifacts handled by AUTOLOG (model/, estimator.html)")
         
         # Log tags
         mlflow.set_tags({
             "model_type": model_type,
             "level": "ADVANCE",
             "tuning": "GridSearchCV",
-            "logging": "Manual",
-            "platform": "DagsHub",
-            "local_model_path": model_path
+            "logging": "Autolog + Manual",
+            "platform": "DagsHub"
         })
         
         # Get run info
         run = mlflow.active_run()
-        print(f"\n✓ MLflow Run ID: {run.info.run_id}")
+        print(f"\n{'='*70}")
+        print(f"✓ MLflow Run ID: {run.info.run_id}")
+        print(f"✓ AUTOLOG: Model artifacts (model/, estimator.html) ✓")
+        print(f"✓ MANUAL: 6 advanced metrics ✓")
+        print(f"✓ MANUAL: 3 visualizations (PNG files) ✓")
         print(f"✓ View on DagsHub: https://dagshub.com/{os.getenv('DAGSHUB_USERNAME')}/{os.getenv('DAGSHUB_REPO')}/experiments")
+        print(f"{'='*70}")
         
         return best_model, metrics
 
@@ -383,7 +411,7 @@ def main():
     print("\n" + "="*70)
     print(" "*10 + "HOTEL BOOKING CANCELLATION PREDICTION")
     print(" "*12 + "KRITERIA 2 - ADVANCE LEVEL (4/4 pts)")
-    print(" "*15 + "DagsHub + Manual Logging + Tuning")
+    print(" "*10 + "AUTOLOG + MANUAL LOGGING + Tuning + DagsHub")
     print("="*70 + "\n")
     
     # Setup DagsHub and MLflow
@@ -399,10 +427,6 @@ def main():
     
     for model_type in models_to_train:
         try:
-            print(f"\n{'='*70}")
-            print(f"TRAINING {model_type} WITH MANUAL LOGGING (ADVANCE LEVEL)")
-            print(f"{'='*70}\n")
-            
             model, metrics = train_model_with_tuning(
                 X_train, X_test, y_train, y_test,
                 model_type=model_type
@@ -430,7 +454,8 @@ def main():
     print("="*70)
     print(f"✓ Total models trained: {len(results)}")
     print(f"✓ MLflow tracking: DagsHub (Online)")
-    print(f"✓ Manual logging: ENABLED")
+    print(f"✓ Autolog: ENABLED (model artifacts)")
+    print(f"✓ Manual logging: 6 advanced metrics + visualizations")
     print(f"✓ Hyperparameter tuning: GridSearchCV")
     print(f"✓ Advanced metrics: +6 beyond autolog")
     
@@ -465,10 +490,15 @@ def main():
     print("\nNext steps:")
     print(f"1. View on DagsHub: https://dagshub.com/{os.getenv('DAGSHUB_USERNAME')}/{os.getenv('DAGSHUB_REPO')}")
     print("2. Navigate to Experiments tab")
-    print("3. Take screenshots:")
-    print("   - Dashboard showing all experiments")
+    print("3. Take screenshots showing:")
+    print("   - Dashboard with all experiments list")
     print("   - Individual run showing all metrics")
-    print("   - Artifacts page showing model and plots")
+    print("   - Artifacts page showing:")
+    print("     * model/ folder (MLmodel, model.pkl, conda.yaml, etc.)")
+    print("     * estimator.html")
+    print("     * confusion_matrix_*.png")
+    print("     * roc_curve_*.png")
+    print("     * feature_importance_*.png")
     print("   - Compare runs view")
     print("\n" + "="*70 + "\n")
 
